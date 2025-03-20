@@ -1,0 +1,21 @@
+[gd_scene load_steps=2 format=2]
+
+[sub_resource type="GDScript" id=1]
+script/source = "extends HSlider
+export(String) var text
+
+onready var font = get_font(\"\")
+
+func _ready():
+	pass
+
+func _draw():
+	var sz = font.get_string_size(str(value))
+	draw_string(font, Vector2(rect_size.x+8, 12), text)
+	draw_string(font, Vector2(-sz.x -8, 12), str(value) )
+"
+
+[node name="SldLb" type="HSlider"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = SubResource( 1 )
