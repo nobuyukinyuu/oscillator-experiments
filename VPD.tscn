@@ -26,7 +26,7 @@ func _ready():
 		o.connect(\"value_changed\", self, \"redraw\")
 	redraw()
 
-func _physics_process(delta):
+func _physics_process(_delta):
 	update()
 
 func _draw():
@@ -62,15 +62,24 @@ func _draw():
 	var circ = Vector2(x2, -y2 / 2.0 + 0.5) * rect_size
 	draw_circle(circ, 3, ColorN(\"cyan\", 0.5))
 
-func redraw(val=null):
+
+enum {AUTO=-1, DEFAULT, SINC} #For window functs
+func redraw(_val=null):
 	update()
 	
 	var pts = []
 	if owner.get_node(\"chkFilter\").pressed == true:
+		var reso_mult = owner.get_node(\"AudioStreamPlayer\").y_span
 		for i in rect_size.x:
-			var osc = osc_at( fmod(owner.get_node(\"AudioStreamPlayer\").distort(i / rect_size.x), 1.0) )
-			var osc2= osc_at(i/rect_size.x + 0.25 )
-			osc *= osc2
+#			var phase = owner.get_node(\"AudioStreamPlayer\").distort(i/rect_size.x, true)  #Phase angle
+#			var reso_phase = fmod((i*reso_mult / rect_size.x), 1.0)
+
+			var phase = (i/rect_size.x)  #Phase angle
+			var reso_phase = owner.get_node(\"AudioStreamPlayer\").distort(fmod((i*reso_mult / rect_size.x), 1.0), true)
+
+			var osc = osc_at( reso_phase )
+			var window = owner.get_node(\"AudioStreamPlayer\").window(phase, SINC)
+			osc *= window
 			pts.append(Vector2(i, (-osc/2.0 + 0.5) * rect_size.y))
 	else:
 		for i in rect_size.x:
@@ -83,11 +92,11 @@ func osc_at(phase):
 	var osc = phase
 	match(owner.get_node(\"OptionButton\").selected):
 		SAW:
-			osc = fmod(phase, 1.0)*2.0-1.0
+			osc = fmod(phase+0.5, 1.0)*2.0-1.0
 		SINE:
 			osc = sin(phase * TAU)
 		TRI:
-			osc = fmod(phase, 1.0)
+			osc = fmod(phase+0.25, 1.0)
 			if osc > 0.5:  osc = 1.0 - osc
 			osc = osc*4 - 1.0
 			osc = stepify(osc, 1.0/float( 1 << int(owner.get_node(\"Duty\").value) ))  #Crush to n-bits
@@ -208,6 +217,20 @@ value = 220.0
 exp_edit = true
 text = "Frequency"
 
+[node name="Reso" parent="." instance=ExtResource( 2 )]
+anchor_right = 0.0
+anchor_bottom = 0.0
+margin_left = 208.0
+margin_top = 512.0
+margin_right = 624.0
+margin_bottom = 528.0
+min_value = 1.0
+max_value = 48000.0
+value = 220.0
+exp_edit = true
+editable = false
+text = "Resonance Frequency"
+
 [node name="Duty" parent="." instance=ExtResource( 2 )]
 anchor_right = 0.0
 anchor_bottom = 0.0
@@ -234,5 +257,6 @@ text = "Filter"
 [connection signal="value_changed" from="CenterContainer/V/Formant" to="AudioStreamPlayer" method="_on_Formant_value_changed"]
 [connection signal="value_changed" from="CenterContainer/V/YSpan" to="AudioStreamPlayer" method="_on_YSpan_value_changed"]
 [connection signal="value_changed" from="Freq" to="AudioStreamPlayer" method="_on_Freq_value_changed"]
+[connection signal="value_changed" from="Reso" to="AudioStreamPlayer" method="_on_Reso_value_changed"]
 [connection signal="value_changed" from="Duty" to="AudioStreamPlayer" method="_on_Duty_value_changed"]
 [connection signal="toggled" from="chkFilter" to="AudioStreamPlayer" method="_on_chkFilter_toggled"]
