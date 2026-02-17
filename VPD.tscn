@@ -1,9 +1,10 @@
-[gd_scene load_steps=6 format=2]
+[gd_scene load_steps=8 format=2]
 
 [ext_resource path="res://SldLb.tscn" type="PackedScene" id=2]
 [ext_resource path="res://VPD_Gen.gd" type="Script" id=3]
 
 [sub_resource type="AudioStreamGenerator" id=1]
+mix_rate = 48000.0
 buffer_length = 0.2
 
 [sub_resource type="StyleBoxFlat" id=6]
@@ -33,7 +34,7 @@ func _draw():
 	#Draw XY Plot of lines for PD modulation span
 	var x = $V/Skew.value
 	var y = $V/Formant.value
-	var y_span = $V/YSpan.value
+	var y_span = $V/Mult.value
 
 	var ratio = 1.0 / y_span
 
@@ -68,6 +69,7 @@ func redraw(_val=null):
 	update()
 	
 	var pts = []
+	var stream = owner.get_node(\"AudioStreamPlayer\")
 	if owner.get_node(\"chkFilter\").pressed == true:
 		var reso_mult = owner.get_node(\"AudioStreamPlayer\").y_span
 		for i in rect_size.x:
@@ -75,15 +77,15 @@ func redraw(_val=null):
 #			var reso_phase = fmod((i*reso_mult / rect_size.x), 1.0)
 
 			var phase = (i/rect_size.x)  #Phase angle
-			var reso_phase = owner.get_node(\"AudioStreamPlayer\").distort(fmod((i*reso_mult / rect_size.x), 1.0), true)
+			var reso_phase = stream.distort(fmod((i*reso_mult / rect_size.x), 1.0), true)
 
 			var osc = osc_at( reso_phase )
-			var window = owner.get_node(\"AudioStreamPlayer\").window(phase, SINC)
+			var window = stream.window(phase, stream.window_tech)
 			osc *= window
 			pts.append(Vector2(i, (-osc/2.0 + 0.5) * rect_size.y))
 	else:
 		for i in rect_size.x:
-			var osc = osc_at( fposmod(owner.get_node(\"AudioStreamPlayer\").distort(i / rect_size.x), 1.0) )
+			var osc = osc_at( fposmod(stream.distort(i / rect_size.x), 1.0) )
 			pts.append(Vector2(i, (-osc/2.0 + 0.5) * rect_size.y))
 		
 	$Poly.points = pts
@@ -121,6 +123,34 @@ func _on_CenterContainer_gui_input(event):
 		$V/Formant.value = v.y
 "
 
+[sub_resource type="Animation" id=7]
+resource_name = "1"
+length = 4.0
+loop = true
+tracks/0/type = "bezier"
+tracks/0/path = NodePath(".:value")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/keys = {
+"points": PoolRealArray( 0, -0.25, 0, 0.25, 0, 15, -0.25, 0, 0.25, 0, 1, -0.25, 0, 0.25, 0 ),
+"times": PoolRealArray( 0, 2, 4 )
+}
+
+[sub_resource type="Animation" id=8]
+length = 0.001
+tracks/0/type = "bezier"
+tracks/0/path = NodePath(".:value")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/keys = {
+"points": PoolRealArray( 0, -0.25, 0, 0.25, 0 ),
+"times": PoolRealArray( 0 )
+}
+
 [node name="Control" type="Control"]
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -147,6 +177,24 @@ margin_top = -22.0
 margin_right = 40.0
 margin_bottom = -8.0
 text = "Input Oscillator:"
+
+[node name="OptionButton2" type="OptionButton" parent="."]
+margin_left = 248.0
+margin_top = 96.0
+margin_right = 408.0
+margin_bottom = 126.0
+text = "None"
+items = [ "None", null, false, -1, null, "Default", null, false, 0, null, "Sinc", null, false, 1, null, "Triangle", null, false, 3, null ]
+selected = 0
+__meta__ = {
+"_edit_group_": true
+}
+
+[node name="Label" type="Label" parent="OptionButton2"]
+margin_top = -22.0
+margin_right = 40.0
+margin_bottom = -8.0
+text = "Windowing technique:"
 
 [node name="CenterContainer" type="Panel" parent="."]
 margin_left = 680.0
@@ -192,7 +240,7 @@ step = 0.001
 value = 0.5
 text = "Formant"
 
-[node name="YSpan" parent="CenterContainer/V" instance=ExtResource( 2 )]
+[node name="Mult" parent="CenterContainer/V" instance=ExtResource( 2 )]
 anchor_right = 0.0
 anchor_bottom = 0.0
 margin_top = 40.0
@@ -202,7 +250,17 @@ min_value = 1.0
 max_value = 15.0
 step = 0.1
 value = 1.0
-text = "Y Span"
+text = "Multiplier"
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="CenterContainer/V/Mult"]
+anims/1 = SubResource( 7 )
+anims/RESET = SubResource( 8 )
+
+[node name="Button" type="Button" parent="CenterContainer/V"]
+margin_top = 60.0
+margin_right = 256.0
+margin_bottom = 80.0
+text = "Cycle"
 
 [node name="Freq" parent="." instance=ExtResource( 2 )]
 anchor_right = 0.0
@@ -252,10 +310,12 @@ hint_tooltip = "Applies a bit of ring modulation with the unmodified carrier to 
 text = "Filter"
 
 [connection signal="item_selected" from="OptionButton" to="CenterContainer" method="redraw"]
+[connection signal="item_selected" from="OptionButton2" to="AudioStreamPlayer" method="_on_OptionButton2_item_selected"]
 [connection signal="gui_input" from="CenterContainer" to="CenterContainer" method="_on_CenterContainer_gui_input"]
 [connection signal="value_changed" from="CenterContainer/V/Skew" to="AudioStreamPlayer" method="_on_Skew_value_changed"]
 [connection signal="value_changed" from="CenterContainer/V/Formant" to="AudioStreamPlayer" method="_on_Formant_value_changed"]
-[connection signal="value_changed" from="CenterContainer/V/YSpan" to="AudioStreamPlayer" method="_on_YSpan_value_changed"]
+[connection signal="value_changed" from="CenterContainer/V/Mult" to="AudioStreamPlayer" method="_on_YSpan_value_changed"]
+[connection signal="pressed" from="CenterContainer/V/Button" to="AudioStreamPlayer" method="_on_Button_pressed"]
 [connection signal="value_changed" from="Freq" to="AudioStreamPlayer" method="_on_Freq_value_changed"]
 [connection signal="value_changed" from="Reso" to="AudioStreamPlayer" method="_on_Reso_value_changed"]
 [connection signal="value_changed" from="Duty" to="AudioStreamPlayer" method="_on_Duty_value_changed"]

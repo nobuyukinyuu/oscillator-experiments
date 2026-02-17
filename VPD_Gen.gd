@@ -21,6 +21,9 @@ var reso_phase = 0.0  #This is incremented by reso_freq, but hard synced to rese
 var inc = 0.0  #Base phase Increment.  Filled by frequency changers
 var reso_inc = 0.0  #Increment for resonance frequency
 
+enum {AUTO=-1, NONE, DEFAULT, SINC, TRIW}  #Windowing technique.  Default imitates CZ
+var window_tech = NONE
+
 func _ready():
 	fill_buffer()
 	play()
@@ -52,7 +55,7 @@ func fill_buffer():
 	
 			#Now retrieve the value of the resonance frequency and window it based on fundamental.
 #			osc = oscillator(reso_phase) * window(phase)
-			osc = oscillator(distort(fmod(reso_phase, 1.0), true)) * window(phase, SINC)
+			osc = oscillator(distort(fmod(reso_phase, 1.0), true)) * window(phase, window_tech)
 	
 
 			playback.push_frame(Vector2.ONE * osc)
@@ -112,7 +115,6 @@ func distort(phase, filtered=false):
 		
 	return fposmod(phase, 1.0)
 
-enum {AUTO=-1, DEFAULT, SINC}
 func window(phase, func_type=DEFAULT):
 	#angle is the phase angle 0-1. For our typical symmetrical windowing funcs we wanna offset phase 50%?
 	var angle = fmod(phase, 1.0)
@@ -120,12 +122,19 @@ func window(phase, func_type=DEFAULT):
 	#TODO:  Add more windowing functions
 	
 	match func_type:
+		NONE:
+			return 1
 		DEFAULT:
 			return 1.0-distort(angle, true)
 		SINC:
 			#normalized sinc
 		#	return sin((PI*angle)/PI*angle)
 			return sin((TAU*(angle-0.5))/TAU*(angle-0.5)) * 4
+		TRIW:
+			var output
+			if angle < 0.5: output = angle * 2
+			else: output = (1.0 - angle) * 2
+			return distort(output, true)
 
 func _on_Freq_value_changed(value):
 	freq = value
@@ -160,3 +169,16 @@ func _on_chkFilter_toggled(button_pressed):
 	#Reset the phrase accumulators so that hard sync works properly
 	phase = 0
 	reso_phase = 0
+
+
+func _on_Button_pressed():
+	var p:AnimationPlayer
+	p = owner.get_node("CenterContainer/V/Mult/AnimationPlayer")
+	if p.is_playing():  p.stop()
+	else: p.play("1")
+
+
+#Change windowing tech
+func _on_OptionButton2_item_selected(index):
+	window_tech = index
+	owner.get_node("CenterContainer").redraw()
